@@ -15,7 +15,9 @@ menu = """
 1) Today's tasks
 2) Week's tasks
 3) All tasks
-4) Add task
+4) Missed tasks
+5) Add task
+6) Delete task
 0) Exit
 """.strip().lower()
 
@@ -32,6 +34,7 @@ weekdays = [
 
 class ToDoList(StageTest):
     db_name = 'todo.db'
+    tasks_before_delete = None
     is_completed = False
 
     def generate(self) -> List[TestCase]:
@@ -55,6 +58,20 @@ class ToDoList(StageTest):
                 stdin=[self.check_deadlines_all_tasks,
                        self.ignore_output,
                        self.check_weeks_task_output]
+            ),
+
+            TestCase(
+                stdin=[self.check_missed_tasks,
+                       self.check_missed_tasks_ignore_output,
+                       self.check_list_of_missed_tasks]
+            ),
+
+            TestCase(
+                stdin=[
+                    self.check_delete_task,
+                    self.delete_tasks,
+                    self.check_if_tasks_deleted
+                ]
             )
         ]
 
@@ -103,7 +120,7 @@ class ToDoList(StageTest):
                         day.title()))
 
         today = datetime.today().date()
-        return '4\nFirst task\n{}\n4\nSecond task\n{}\n1'.format(today, today)
+        return '5\nFirst task\n{}\n5\nSecond task\n{}\n1'.format(today, today)
 
     def check_added_task(self, output):
         tasks = self.execute('SELECT * FROM task')
@@ -136,7 +153,7 @@ class ToDoList(StageTest):
         first_date = datetime.today().date()
         second_date = first_date + timedelta(days=3)
         last_date = first_date + timedelta(days=6)
-        test_input = "4\nDeadline is today\n{}\n4\nDeadline in 3 days\n{}\n4\nDeadline in 6 days\n{}" \
+        test_input = "5\nDeadline is today\n{}\n5\nDeadline in 3 days\n{}\n5\nDeadline in 6 days\n{}" \
             .format(first_date, second_date, last_date).strip()
         return test_input
 
@@ -197,6 +214,65 @@ class ToDoList(StageTest):
             return CheckResult.wrong(
                 'When you output the week\'s tasks the last date doesn\'t contain added task for which deadline is in 6 days.')
 
+        self.is_completed = True
+        return '0'
+
+    def check_missed_tasks(self, output):
+        today = datetime.today().date()
+        minus_one_day = today - timedelta(days=1)
+        minus_two_days = today - timedelta(days=2)
+        return '5\nFirst missed task\n{}\n5\nSecond missed task\n{}'.format(minus_two_days, minus_one_day)
+
+    def check_missed_tasks_ignore_output(self, output):
+        return '4'
+
+    def check_list_of_missed_tasks(self, output):
+        if 'missed tasks' not in output.lower():
+            return CheckResult.wrong('Your program doesn\'t show missed tasks!')
+
+        blocks = output.strip().split('\n\n')
+        if len(blocks) != 2:
+            return CheckResult.wrong(
+                'There is something wrong with format of output. Please make sure that you print only one empty line after printing missed tasks!')
+
+        tasks = blocks[0].lower()
+
+        if ('first missed task' not in tasks
+                or 'second missed task' not in tasks):
+            return CheckResult.wrong('When you print missed task you don\'t print all of them!')
+
+        lines = tasks.splitlines()
+        index_of_first_task = 0
+        index_of_second_task = 0
+        for i, line in enumerate(lines):
+            if 'first missed task' in line:
+                index_of_first_task = i
+            if 'second missed task' in line:
+                index_of_second_task = i
+
+        if index_of_first_task > index_of_second_task:
+            return CheckResult.wrong('Missed tasks should be sorted by their deadlines!')
+
+        self.is_completed = True
+        return '0'
+
+    def check_delete_task(self, output):
+        self.execute('DELETE FROM task')
+        first_date = datetime.today().date()
+        second_date = first_date + timedelta(days=3)
+        last_date = first_date + timedelta(days=6)
+        test_input = "5\nDeadline is today\n{}\n5\nDeadline in 3 days\n{}\n5\nDeadline in 6 days\n{}\n6" \
+            .format(first_date, second_date, last_date).strip()
+        return test_input
+
+    def delete_tasks(self, output):
+        ToDoList.tasks_before_delete = len(self.execute('SELECT * FROM task'))
+        return '1\n6\n1\n6\n1'
+
+    def check_if_tasks_deleted(self, output):
+        tasks_after_delete = len(self.execute('SELECT * FROM task'))
+        if not tasks_after_delete < ToDoList.tasks_before_delete:
+            return CheckResult.wrong('Once a task has been deleted, there should be less rows in the table.')
         self.is_completed = True
         return '0'
 
