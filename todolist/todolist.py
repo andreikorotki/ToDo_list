@@ -33,6 +33,10 @@ session = Session()
 # print(first_row.id)  # Will print the id of the row.
 # print(first_row)  # Will print the string that was returned by __repr__ method
 
+def print_task_rows(task_rows):
+    for row in task_rows:
+        print(str(row.id) + '. ' + row.task + '. ' + row.deadline.strftime("%d %b"))
+
 
 def print_todays_tasks():
     print("Today " + datetime.today().strftime("%d %b:"))
@@ -63,8 +67,8 @@ def print_all_tasks():
     rows = session.query(Table).all()
     if len(rows) == 0:
         print("Nothing to do!")
-    for row in rows:
-        print(str(row.id) + '. ' + row.task + '. ' + row.deadline.strftime("%d %b"))
+    else:
+        print_task_rows(rows)
 
 
 def add_task():
@@ -81,16 +85,42 @@ def add_task():
     print("The task has been added!")
 
 
+def missed_tasks():
+    rows = session.query(Table).filter(Table.deadline < datetime.today().date()).order_by(Table.deadline).all()
+    if len(rows) == 0:
+        print("Nothing is missed!")
+    else:
+        print_task_rows(rows)
+
+
+def delete_task():
+    rows = session.query(Table).order_by(Table.deadline).all()
+    if len(rows) == 0:
+        print("Nothing to delete")
+    else:
+        print("Chose the number of the task you want to delete:")
+        print_task_rows(rows)
+
+        task_id = int(input())
+        session.query(Table).filter(Table.id == task_id).delete()
+        session.commit()
+
+        print("The task has been deleted!")
+
+
 def main():
     while True:
         print("1) Today's tasks")
         print("2) Week's tasks")
         print("3) All tasks")
-        print("4) Add task")
+        print("4) Missed tasks")
+        print("5) Add task")
+        print("6) Delete task")
         print("0) Exit")
 
         user_input = int(input())
         print("")
+
         if user_input == 1:
             print_todays_tasks()
         elif user_input == 2:
@@ -98,7 +128,11 @@ def main():
         elif user_input == 3:
             print_all_tasks()
         elif user_input == 4:
+            missed_tasks()
+        elif user_input == 5:
             add_task()
+        elif user_input == 6:
+            delete_task()
         elif user_input == 0:
             print("Bye!")
             break
